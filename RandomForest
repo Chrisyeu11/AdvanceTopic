@@ -1,0 +1,79 @@
+# Load required libraries
+if (!require("C50")) install.packages("C50", dependencies = TRUE)
+if (!require("gmodels")) install.packages("gmodels", dependencies = TRUE)
+
+library(C50)
+library(gmodels)
+
+# Import the dataset
+credit <- read.csv("C:/Users/yeu3178/Downloads/credit.csv", stringsAsFactors = TRUE)
+
+# Preview structure and summary
+str(credit)
+summary(credit)
+
+# Set seed for reproducibility
+set.seed(12345)
+
+# Randomize the order of records
+credit_rand <- credit[order(runif(1000)), ]
+
+# Compare summaries to check similarity
+summary(credit)
+summary(credit_rand)
+
+# Check record order
+head(credit$amount, 10)
+head(credit_rand$amount, 10)
+
+# 900 training, 100 testing
+credit_train <- credit_rand[1:900, ]
+credit_test <- credit_rand[901:1000, ]
+
+# Check proportion of default in both sets
+prop.table(table(credit_train$default))
+prop.table(table(credit_test$default))
+
+credit_train$default <- as.factor(credit_train$default)
+credit_test$default  <- as.factor(credit_test$default)
+
+
+# Build model
+credit_model <- C5.0(credit_train[-17], credit_train$default)
+
+# Model summary
+summary(credit_model)
+# Predict on test set
+credit_pred <- predict(credit_model, credit_test[-17])
+
+# Evaluate predictions
+CrossTable(credit_test$default, credit_pred,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c("Actual Default", "Predicted Default"))
+
+# Train boosted model with 10 trials
+credit_boost10 <- C5.0(credit_train[-17], credit_train$default, trials = 10)
+
+# Predict using boosted model
+credit_boost_pred10 <- predict(credit_boost10, credit_test[-17])
+
+# Evaluate boosted predictions
+CrossTable(credit_test$default, credit_boost_pred10,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c("Actual Default", "Predicted Default"))
+# Define cost matrix
+matrix_dimensions <- list(c("no", "yes"), c("no", "yes"))
+names(matrix_dimensions) <- c("predicted", "actual")
+
+error_cost <- matrix(c(0, 1, 4, 0), nrow = 2)
+
+# Train cost-sensitive model
+credit_cost <- C5.0(credit_train[-17], credit_train$default, costs = error_cost)
+
+# Predict with cost-sensitive model
+credit_cost_pred <- predict(credit_cost, credit_test[-17])
+
+# Evaluate cost-sensitive predictions
+CrossTable(credit_test$default, credit_cost_pred,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c("Actual Default", "Predicted Default"))
